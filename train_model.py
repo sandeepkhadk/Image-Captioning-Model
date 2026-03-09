@@ -1,3 +1,4 @@
+from email import generator
 import string
 import numpy as np
 import os
@@ -97,3 +98,47 @@ with open("tokenizer.p", "wb") as f:
     dump(tokenizer, f)
 
 print("Tokenizer saved successfully")
+
+vocab_size = len(tokenizer.word_index) + 1
+print(f"Vocabulary Size: {vocab_size}")
+
+def max_length(descriptions):
+    desc_list = dict_to_list(descriptions)
+    return max(len(d.split()) for d in desc_list)
+
+max_len = max_length(train_descriptions)
+print(f"Maximum Description Length: {max_len}")
+
+def data_generator(descriptions, features, tokenizer, max_len, vocab_size):
+    def generator():
+        while True:
+            for key, desc_list in descriptions.items():
+                feature = features[key][0]
+                input_image, input_sequence, output_word = create_sequences(tokenizer, max_len, descriptions)
+                for i in range(len(input_image)):
+                    yield {'input_image': input_image[i], 'input_sequence': input_sequence[i], 'output_word': output_word[i]}
+    output_signature = (
+    {
+        'input_image': tf.TensorSpec(shape=(2048,), dtype=tf.float32), 
+        'input_sequence': tf.TensorSpec(shape=(max_len,), dtype=tf.int32)
+    },
+    tf.TensorSpec(shape=(vocab_size,), dtype=tf.float32)
+    )
+    
+    dataset = tf.data.Dataset.from_generator(generator, output_signature=output_signature)
+
+    return dataset.batch(32)
+
+def create_sequences(tokenizer, max_len, descriptions):
+    input_image, input_sequence, output_word = [], [], []
+    
+    for desc in descriptions:
+        seq = tokenizer.texts_to_sequences([desc])[0]
+        for i in range(1, len(seq)):
+            in_seq, out_seq = seq[:i], seq[i]
+            in_seq = pad_sequences([in_seq], maxlen=max_len)[0]
+            out_seq = to_categorical([out_seq], num_classes=vocab_size)[0]
+            input_image.append(feature)
+            input_sequence.append(in_seq)
+            output_word.append(out_seq)
+    return np.array(input_image), np.array(input_sequence), np.array(output_word)
